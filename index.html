@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Controle Diário de Presença - VQ</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS para Excel -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen py-6 px-3 sm:px-6 lg:px-8">
+
+  <div class="max-w-2xl mx-auto space-y-5">
+    
+    <!-- Navegação por Abas no Topo -->
+    <div class="flex rounded-xl bg-slate-200 p-1 shadow-inner text-sm font-semibold">
+      <button onclick="mudarAba('lancamento')" id="tabLancamento" class="flex-1 py-2.5 rounded-lg bg-white text-blue-700 shadow-sm transition">
+        📝 Lançamento Diário
+      </button>
+      <button onclick="mudarAba('historico')" id="tabHistorico" class="flex-1 py-2.5 rounded-lg text-slate-600 hover:text-slate-800 transition">
+        📊 Histórico Geral
+      </button>
+    </div>
+
+    <!-- ================= ABA 1: LANÇAMENTO DIÁRIO ================= -->
+    <div id="conteudoLancamento" class="space-y-5">
+      
+      <!-- Cabeçalho & Status -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-3">
+        <div class="flex justify-between items-center">
+          <span class="text-[10px] font-semibold px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full border border-blue-200">VQ Operations</span>
+          <div id="statusRede" class="text-[11px] font-medium px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Online
+          </div>
+          <button type="button" onclick="limparFormulario()" class="text-xs font-medium text-slate-500 hover:text-rose-600 transition flex items-center gap-1">
+            <span>🔄</span> Limpar
+          </button>
+        </div>
+
+        <h1 class="text-xl font-bold text-slate-800 text-center flex items-center justify-center gap-2">
+          <span>📋</span> Controle de Presença
+        </h1>
+        
+        <!-- Campo de Data -->
+        <div class="max-w-xs mx-auto">
+          <label for="dataLancamento" class="block text-xs font-semibold text-slate-600 mb-1 text-center">📅 Data do Lançamento:</label>
+          <input type="date" id="dataLancamento" 
+                 class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-medium text-slate-700 text-center focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                 onchange="aoMudarData()">
+        </div>
+
+        <!-- Botões de Ação Rápida -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100 text-xs">
+          <button type="button" onclick="abrirModalExcel('export')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 px-2 rounded-lg transition flex items-center justify-center gap-1">
+            <span>📤</span> Exportar Excel
+          </button>
+          <label class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 px-2 rounded-lg transition flex items-center justify-center gap-1 cursor-pointer">
+            <span>📥</span> Importar Excel
+            <input type="file" id="importFile" accept=".xlsx, .xls" class="hidden" onchange="importarExcel(event)">
+          </label>
+          <button type="button" onclick="ativarEdicao()" class="bg-amber-50 hover:bg-amber-100 text-amber-700 font-semibold py-2 px-2 rounded-lg transition flex items-center justify-center gap-1 border border-amber-200">
+            <span>✏️</span> Editar
+          </button>
+          <button type="button" onclick="deletarLancamento()" class="bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold py-2 px-2 rounded-lg transition flex items-center justify-center gap-1 border border-rose-200">
+            <span>🗑️</span> Deletar
+          </button>
+        </div>
+      </div>
+
+      <!-- Card de Acompanhamento (Progresso) -->
+      <div class="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-4 text-white shadow-md space-y-3">
+        <div class="flex justify-between items-center text-xs font-semibold uppercase tracking-wider text-blue-100">
+          <span>📈 Acompanhamento do Dia</span>
+          <span id="labelStatusLancamento" class="bg-blue-500/50 px-2 py-0.5 rounded-md text-[10px]">Em andamento</span>
+        </div>
+        <div class="w-full bg-blue-900/40 rounded-full h-2.5 overflow-hidden">
+          <div id="barraProgresso" class="bg-emerald-400 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+        <div class="grid grid-cols-3 gap-2 text-center pt-1">
+          <div class="bg-white/10 rounded-xl p-2">
+            <span class="block text-[10px] text-blue-200">Previstos</span>
+            <strong id="cardPrev" class="text-lg">0</strong>
+          </div>
+          <div class="bg-white/10 rounded-xl p-2">
+            <span class="block text-[10px] text-emerald-200">Presentes</span>
+            <strong id="cardPres" class="text-lg">0</strong>
+          </div>
+          <div class="bg-white/10 rounded-xl p-2">
+            <span class="block text-[10px] text-rose-200">Ausentes</span>
+            <strong id="cardAus" class="text-lg">0</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Container Dinâmico das Áreas -->
+      <div id="areas-container" class="space-y-3"></div>
+
+      <!-- Indicadores Detalhados -->
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 grid grid-cols-2 gap-3 text-center">
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+          <span class="block text-[11px] font-semibold text-slate-500">Taxa de Assiduidade</span>
+          <strong id="indTaxa" class="text-xl font-bold text-slate-800 mt-0.5 block">-</strong>
+        </div>
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+          <span class="block text-[11px] font-semibold text-slate-500">Total Ausências</span>
+          <strong id="indAusentes" class="text-xl font-bold text-rose-600 mt-0.5 block">-</strong>
+        </div>
+      </div>
+
+      <!-- Relatório Final & Botão Salvar -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
+        <h2 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <span>💬</span> Resumo Gerado para Envio
+        </h2>
+        <div id="resultadoText" class="bg-slate-900 text-slate-100 p-3 rounded-xl font-mono text-xs leading-relaxed whitespace-pre-wrap min-h-[140px]">
+          Aguardando o preenchimento...
+        </div>
+        
+        <div class="space-y-2">
+          <button type="button" onclick="salvarManual()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-sm text-sm cursor-pointer">
+            <span>💾</span> Salvar Lançamento
+          </button>
+          <button type="button" onclick="copiarTexto()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-sm text-sm cursor-pointer">
+            <span>📋</span> Copiar Relatório para WhatsApp
+          </button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ================= ABA 2: HISTÓRICO GERAL ================= -->
+    <div id="conteudoHistorico" class="space-y-4" style="display: none;">
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
+        <div class="flex justify-between items-center">
+          <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+            <span>📊</span> Histórico de Lançamentos Salvos
+          </h2>
+          <button onclick="carregarHistorico()" class="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-medium transition">
+            🔄 Atualizar Lista
+          </button>
+        </div>
+        <p class="text-xs text-slate-500">Abaixo estão todos os dias registrados no sistema. Você pode carregar um dia para edição ou deletá-lo.</p>
+
+        <div id="tabelaHistorico" class="space-y-3 pt-2">
+          <div class="text-center py-6 text-sm text-slate-400">Carregando histórico...</div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ================= MODAL DE OPÇÕES DE EXCEL ================= -->
+    <div id="modalExcel" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" style="display: none;">
+      <div class="bg-white rounded-2xl p-5 max-w-sm w-full space-y-4 shadow-xl">
+        <h3 class="font-bold text-slate-800 text-base flex items-center gap-2">
+          <span>📤</span> Exportar Relatório para Excel
+        </h3>
+        
+        <div class="space-y-3 text-xs">
+          <label class="block font-medium text-slate-600">Selecione o filtro de exportação:</label>
+          
+          <label class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50">
+            <input type="radio" name="filtroExcel" value="dia" checked onchange="toggleDatasExcel()">
+            <div>
+              <strong class="block text-slate-700">Apenas do dia selecionado</strong>
+              <span class="text-slate-400 text-[10px]">Exporta o dia ativo no campo de data</span>
+            </div>
+          </label>
+
+          <label class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50">
+            <input type="radio" name="filtroExcel" value="periodo" onchange="toggleDatasExcel()">
+            <div>
+              <strong class="block text-slate-700">Por Período (Intervalo)</strong>
+              <span class="text-slate-400 text-[10px]">Escolha uma data inicial e final</span>
+            </div>
+          </label>
+
+          <div id="camposPeriodo" class="grid grid-cols-2 gap-2 pl-2" style="display: none;">
+            <div>
+              <label class="block text-[10px] text-slate-500 mb-1">Início:</label>
+              <input type="date" id="excelInicio" class="w-full p-1.5 border rounded-lg text-xs">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 mb-1">Fim:</label>
+              <input type="date" id="excelFim" class="w-full p-1.5 border rounded-lg text-xs">
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-2 pt-2">
+          <button onclick="fecharModalExcel()" class="flex-1 bg-slate-100 hover:bg-slate-200 py-2.5 rounded-xl font-semibold text-xs text-slate-600">Cancelar</button>
+          <button onclick="executarExportacaoExcel()" class="flex-1 bg-blue-600 hover:bg-blue-700 py-2.5 rounded-xl font-semibold text-xs text-white">Exportar</button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Toast de Notificação -->
+    <div id="toast" class="fixed bottom-5 left-4 right-4 sm:left-auto sm:right-5 sm:max-w-sm bg-slate-800 text-white text-sm py-3 px-4 rounded-xl shadow-xl transition-all duration-300 opacity-0 pointer-events-none flex items-center gap-2 z-50">
+      <span id="toastIcon">✅</span> <span id="toastMsg">Dados salvos com sucesso!</span>
+    </div>
+
+  </div>
+
+  <!-- Scripts Firebase & Lógica Completa -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
+    import { getFirestore, doc, setDoc, deleteDoc, getDocs, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyD7BU26t4XGD_eNTwqv0PNeu7ShsZPivpA",
+      authDomain: "presenteismovq.firebaseapp.com",
+      projectId: "presenteismovq",
+      storageBucket: "presenteismovq.firebasestorage.app",
+      messagingSenderId: "804756894352",
+      appId: "1:804756894352:web:5b91b89bf4657fb2971e15",
+      measurementId: "G-DK77B21DKG"
+    };
+
+    let db = null;
+    let unsubscribeCurrent = null;
+    let isRemoteUpdate = false;
+    let modoEdicaoAtivo = true;
+
+    try {
+      const app = initializeApp(firebaseConfig);
+      getAnalytics(app);
+      db = getFirestore(app);
+    } catch (e) {
+      console.warn("Firebase offline mode", e);
+    }
+
+    const areas = [
+      { id: 'linhaOk', nome: '🏭 Linha OK' },
+      { id: 'linhaInspecao', nome: '🔍 Linha de Inspeção' },
+      { id: 'testeEstrada', nome: '🛣️ Teste de Estrada' },
+      { id: 'testeChuva', nome: '🌧️ Linha de Teste de Chuva' }
+    ];
+    window.areasApp = areas;
+
+    function setInitialDate() {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      document.getElementById('dataLancamento').value = `${year}-${month}-${day}`;
+    }
+
+    function formatarDataBR(dataIso) {
+      if (!dataIso) return '';
+      const partes = dataIso.split('-');
+      if (partes.length !== 3) return dataIso;
+      return `${partes[2]}/${partes[1]}/${partes[0]}`;
+    }
+
+    // Controle de Abas
+    window.mudarAba = function(aba) {
+      const btnLanc = document.getElementById('tabLancamento');
+      const btnHist = document.getElementById('tabHistorico');
+      const contLanc = document.getElementById('conteudoLancamento');
+      const contHist = document.getElementById('conteudoHistorico');
+
+      if (aba === 'lancamento') {
+        btnLanc.className = "flex-1 py-2.5 rounded-lg bg-white text-blue-700 shadow-sm transition";
+        btnHist.className = "flex-1 py-2.5 rounded-lg text-slate-600 hover:text-slate-800 transition";
+        contLanc.style.display = "block";
+        contHist.style.display = "none";
+      } else {
+        btnHist.className = "flex-1 py-2.5 rounded-lg bg-white text-blue-700 shadow-sm transition";
+        btnLanc.className = "flex-1 py-2.5 rounded-lg text-slate-600 hover:text-slate-800 transition";
+        contHist.style.display = "block";
+        contLanc.style.display = "none";
+        carregarHistorico();
+      }
+    };
+
+    window.inicializarFormulario = function() {
+      setInitialDate();
+      const container = document.getElementById('areas-container');
+      container.innerHTML = '';
+
+      areas.forEach(area => {
+        const block = document.createElement('div');
+        block.id = `block_${area.id}`;
+        block.className = 'bg-white rounded-2xl p-4 shadow-sm border border-slate-200 transition duration-200';
+        block.innerHTML = `
+          <h3 class="font-semibold text-slate-800 text-sm mb-2.5 flex items-center gap-2">${area.nome}</h3>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="previsto_${area.id}" class="block text-[11px] font-semibold text-slate-600 mb-1">Previstos:</label>
+              <input type="number" id="previsto_${area.id}" placeholder="0" min="0" 
+                     class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" 
+                     oninput="aoDigitarFormulario()">
+            </div>
+            <div>
+              <label for="presentes_${area.id}" class="block text-[11px] font-semibold text-slate-600 mb-1">Presentes:</label>
+              <input type="number" id="presentes_${area.id}" placeholder="0" min="0" 
+                     class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" 
+                     oninput="aoDigitarFormulario()">
+            </div>
+          </div>
+          <div id="detalhes_${area.id}" class="mt-3 pt-3 border-t border-dashed border-slate-200 space-y-2.5" style="display: none;"></div>
+        `;
+        container.appendChild(block);
+      });
+
+      conectarTempoReal();
+      calcular();
+    };
+
+    window.ajustarCamposAusentes = function(areaId, previsto, presentes, dadosSalvosAusentes = []) {
+      const blockCard = document.getElementById(`block_${areaId}`);
+      const detalhesDiv = document.getElementById(`detalhes_${areaId}`);
+
+      if (!isNaN(previsto) && !isNaN(presentes) && presentes < previsto) {
+        blockCard.classList.remove('border-slate-200');
+        blockCard.classList.add('border-rose-300', 'bg-rose-50/10');
+
+        const ausentes = previsto - presentes;
+        detalhesDiv.style.display = 'block';
+
+        const itensExistentes = detalhesDiv.querySelectorAll('.pessoa-item');
+        const qtdAtual = itensExistentes.length;
+
+        if (ausentes > qtdAtual) {
+          for (let i = qtdAtual + 1; i <= ausentes; i++) {
+            const dadoSalvo = dadosSalvosAusentes[i - 1] || { colaborador: '', motivo: '' };
+            const item = document.createElement('div');
+            item.className = 'pessoa-item bg-white border border-rose-200 p-2.5 rounded-xl space-y-2 shadow-sm';
+            item.innerHTML = `
+              <div class="text-[11px] font-bold text-rose-600 flex items-center gap-1"><span>⚠️</span> Ausência #${i}</div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[10px] font-medium text-slate-600 mb-0.5">👤 Nome:</label>
+                  <input type="text" class="nome_${areaId} w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500" value="${dadoSalvo.colaborador}" placeholder="Nome do colaborador" oninput="aoDigitarFormulario()">
+                </div>
+                <div>
+                  <label class="block text-[10px] font-medium text-slate-600 mb-0.5">📝 Motivo:</label>
+                  <input type="text" class="motivo_${areaId} w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500" value="${dadoSalvo.motivo}" placeholder="Ex: Atestado" oninput="aoDigitarFormulario()">
+                </div>
+              </div>
+            `;
+            detalhesDiv.appendChild(item);
+          }
+        } else if (ausentes < qtdAtual) {
+          for (let i = qtdAtual; i > ausentes; i--) {
+            detalhesDiv.removeChild(itensExistentes[i - 1]);
+          }
+        }
+      } else {
+        blockCard.classList.remove('border-rose-300', 'bg-rose-50/10');
+        blockCard.classList.add('border-slate-200');
+        detalhesDiv.innerHTML = '';
+        detalhesDiv.style.display = 'none';
+      }
+    };
+
+    function conectarTempoReal() {
+      if (!db) return;
+      const dataVal = document.getElementById('dataLancamento').value;
+      if (!dataVal) return;
+
+      if (unsubscribeCurrent) unsubscribeCurrent();
+
+      const docRef = doc(db, "relatorios_presenca", dataVal);
+      unsubscribeCurrent = onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists() && !isRemoteUpdate) {
+          const dados = docSnap.data();
+          if (dados && dados.areas) {
+            isRemoteUpdate = true;
+            dados.areas.forEach(a => {
+              const prevInput = document.getElementById(`previsto_${a.id}`);
+              const presInput = document.getElementById(`presentes_${a.id}`);
+              if (prevInput) prevInput.value = a.previsto !== undefined ? a.previsto : '';
+              if (presInput) presInput.value = a.presentes !== undefined ? a.presentes : '';
+              
+              window.ajustarCamposAusentes(a.id, a.previsto || 0, a.presentes || 0, a.detalhesAusentes || []);
+            });
+            calcular();
+            isRemoteUpdate = false;
+          }
+        }
+      });
+    }
+
+    window.aoMudarData = function() {
+      conectarTempoReal();
+      const dataVal = document.getElementById('dataLancamento').value;
+      const salvoLocal = localStorage.getItem(`vq_presenca_${dataVal}`);
+      if (salvoLocal) {
+        preencherDados(JSON.parse(salvoLocal));
+      } else {
+        limparCamposValores();
+      }
+      calcular();
+    };
+
+    function limparCamposValores() {
+      areas.forEach(area => {
+        document.getElementById(`previsto_${area.id}`).value = '';
+        document.getElementById(`presentes_${area.id}`).value = '';
+        window.ajustarCamposAusentes(area.id, 0, 0);
+      });
+    }
+
+    let timeoutSalvar = null;
+    window.aoDigitarFormulario = function() {
+      if (!modoEdicaoAtivo) return;
+      areas.forEach(area => {
+        const p = parseInt(document.getElementById(`previsto_${area.id}`).value) || 0;
+        const pr = parseInt(document.getElementById(`presentes_${area.id}`).value) || 0;
+        window.ajustarCamposAusentes(area.id, p, pr);
+      });
+
+      calcular();
+
+      const estadoAtual = coletarDadosObjeto();
+      const dataVal = document.getElementById('dataLancamento').value;
+      if (dataVal) {
+        localStorage.setItem(`vq_presenca_${dataVal}`, JSON.stringify(estadoAtual));
+      }
+
+      clearTimeout(timeoutSalvar);
+      timeoutSalvar = setTimeout(() => {
+        sincronizarComFirebase(estadoAtual, false);
+      }, 1000);
+    };
+
+    async function sincronizarComFirebase(dados, mostrarMensagem = true) {
+      if (!db || isRemoteUpdate) return;
+      const dataVal = document.getElementById('dataLancamento').value;
+      if (!dataVal) return;
+
+      try {
+        await setDoc(doc(db, "relatorios_presenca", dataVal), dados);
+        if (mostrarMensagem) {
+          mostrarToast("✅ Dados salvos com sucesso!");
+        }
+      } catch (e) {
+        console.warn("Erro ao salvar:", e);
+        if (mostrarMensagem) {
+          mostrarToast("⚠️ Salvo localmente (Sem conexão)");
+        }
+      }
+    }
+
+    window.salvarManual = function() {
+      const dados = coletarDadosObjeto();
+      sincronizarComFirebase(dados, true);
+    };
+
+    window.ativarEdicao = function() {
+      modoEdicaoAtivo = true;
+      mostrarToast("✏️ Modo de edição ativado!");
+    };
+
+    window.deletarLancamento = async function() {
+      if (confirm("Tem certeza que deseja deletar este lançamento do dia?")) {
+        const dataVal = document.getElementById('dataLancamento').value;
+        localStorage.removeItem(`vq_presenca_${dataVal}`);
+        if (db) {
+          try {
+            await deleteDoc(doc(db, "relatorios_presenca", dataVal));
+          } catch(e) { console.error(e); }
+        }
+        limparCamposValores();
+        calcular();
+        mostrarToast("🗑️ Lançamento deletado com sucesso!");
+      }
+    };
+
+    function coletarDadosObjeto() {
+      const dataVal = document.getElementById('dataLancamento').value;
+      let totalPrevisto = 0, totalPresentes = 0, totalAusentes = 0;
+      const detalhamentoAreas = [];
+
+      areas.forEach(area => {
+        const previsto = parseInt(document.getElementById(`previsto_${area.id}`).value) || 0;
+        const presentes = parseInt(document.getElementById(`presentes_${area.id}`).value) || 0;
+        const ausentes = Math.max(0, previsto - presentes);
+
+        totalPrevisto += previsto;
+        totalPresentes += presentes;
+        totalAusentes += ausentes;
+
+        const ausentesDetalhes = [];
+        if (ausentes > 0) {
+          const nomes = document.querySelectorAll(`.nome_${area.id}`);
+          const motivos = document.querySelectorAll(`.motivo_${area.id}`);
+          nomes.forEach((nomeInput, idx) => {
+            ausentesDetalhes.push({
+              colaborador: nomeInput.value.trim(),
+              motivo: motivos[idx]?.value.trim()
+            });
+          });
+        }
+
+        detalhamentoAreas.push({
+          id: area.id,
+          nome: area.nome,
+          previsto,
+          presentes,
+          ausentes,
+          detalhesAusentes: ausentesDetalhes
+        });
+      });
+
+      return {
+        data: dataVal,
+        totalPrevisto,
+        totalPresentes,
+        totalAusentes,
+        areas: detalhamentoAreas,
+        relatorioFormatado: document.getElementById('resultadoText').innerText,
+        atualizadoEm: new Date().toISOString()
+      };
+    }
+
+    function preencherDados(dados) {
+      if (!dados || !dados.areas) return;
+      isRemoteUpdate = true;
+      dados.areas.forEach(a => {
+        const prevInput = document.getElementById(`previsto_${a.id}`);
+        const presInput = document.getElementById(`presentes_${a.id}`);
+        if (prevInput) prevInput.value = a.previsto !== undefined ? a.previsto : '';
+        if (presInput) presInput.value = a.presentes !== undefined ? a.presentes : '';
+        window.ajustarCamposAusentes(a.id, a.previsto || 0, a.presentes || 0, a.detalhesAusentes || []);
+      });
+      calcular();
+      isRemoteUpdate = false;
+    }
+
+    window.calcular = function() {
+      let totalPrevistoVQ = 0, totalPresentesVQ = 0, totalAusentesVQ = 0;
+      let algumPreenchido = false;
+      let detalhamentoAreasTexto = '', detalhamentoPessoasTexto = '';
+
+      areas.forEach(area => {
+        const ip = document.getElementById(`previsto_${area.id}`).value.trim();
+        const ipr = document.getElementById(`presentes_${area.id}`).value.trim();
+
+        if (ip !== '' || ipr !== '') algumPreenchido = true;
+
+        const previsto = ip !== '' ? parseInt(ip, 10) : 0;
+        const presentes = ipr !== '' ? parseInt(ipr, 10) : 0;
+        const ausentes = (ip !== '' && ipr !== '') ? Math.max(0, previsto - presentes) : 0;
+
+        totalPrevistoVQ += previsto;
+        totalPresentesVQ += presentes;
+        totalAusentesVQ += ausentes;
+
+        detalhamentoAreasTexto += `${area.nome}: ${ausentes} pessoas ausentes\n`;
+
+        if (ausentes > 0) {
+          const nomes = document.querySelectorAll(`.nome_${area.id}`);
+          const motivos = document.querySelectorAll(`.motivo_${area.id}`);
+          let pessoasArea = [];
+          nomes.forEach((n, idx) => {
+            pessoasArea.push(`  • ${n.value.trim() || 'Não informado'} - Motivo: ${motivos[idx]?.value.trim() || 'Não informado'}`);
+          });
+          if (pessoasArea.length > 0) {
+            detalhamentoPessoasTexto += `\n${area.nome}:\n` + pessoasArea.join('\n');
+          }
+        }
+      });
+
+      let taxaAssiduidade = algumPreenchido && totalPrevistoVQ > 0 ? ((totalPresentesVQ / totalPrevistoVQ) * 100).toFixed(1) + '%' : '-';
+
+      document.getElementById('cardPrev').innerText = algumPreenchido ? totalPrevistoVQ : '0';
+      document.getElementById('cardPres').innerText = algumPreenchido ? totalPresentesVQ : '0';
+      document.getElementById('cardAus').innerText = algumPreenchido ? totalAusentesVQ : '0';
+      document.getElementById('indTaxa').innerText = taxaAssiduidade;
+      document.getElementById('indAusentes').innerText = algumPreenchido ? totalAusentesVQ : '-';
+
+      let percentual = totalPrevistoVQ > 0 ? Math.min(100, (totalPresentesVQ / totalPrevistoVQ) * 100) : 0;
+      document.getElementById('barraProgresso').style.width = percentual + '%';
+
+      if (!algumPreenchido) {
+        document.getElementById('resultadoText').innerText = 'Aguardando o preenchimento...';
+        document.getElementById('labelStatusLancamento').innerText = 'Pendente';
+        return;
+      }
+
+      document.getElementById('labelStatusLancamento').innerText = 'Preenchido';
+
+      const dataVal = document.getElementById('dataLancamento').value;
+      const cabecalhoData = dataVal ? `📅 Data: ${formatarDataBR(dataVal)}\n\n` : '';
+
+      let texto = `${cabecalhoData}📊 Total previsto de colaboradores da VQ: ${totalPrevistoVQ} pessoas
+✅ Total de colaboradores presentes: ${totalPresentesVQ} pessoas
+❌ Total de colaboradores ausentes por motivo de falta/afastamento: ${totalAusentesVQ} pessoas
+
+📌 Detalhamento das ausências por área:
+${detalhamentoAreasTexto.trim()}`;
+
+      if (detalhamentoPessoasTexto) {
+        texto += `\n\n📝 Detalhamento dos Motivos e Ausências:${detalhamentoPessoasTexto}`;
+      }
+
+      document.getElementById('resultadoText').innerText = texto;
+    };
+
+    // Modal de Excel
+    window.abrirModalExcel = function() {
+      document.getElementById('modalExcel').style.display = 'flex';
+    }
+    window.fecharModalExcel = function() {
+      document.getElementById('modalExcel').style.display = 'none';
+    }
+    window.toggleDatasExcel = function() {
+      const tipo = document.querySelector('input[name="filtroExcel"]:checked').value;
+      document.getElementById('camposPeriodo').style.display = (tipo === 'periodo') ? 'grid' : 'none';
+    }
+
+    // Função auxiliar para remover emojis na exportação do Excel
+    function limparTextoSemEmoji(texto) {
+      if (!texto) return '';
+      return texto.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '').trim();
+    }
+
+    window.executarExportacaoExcel = async function() {
+      fecharModalExcel();
+      const tipo = document.querySelector('input[name="filtroExcel"]:checked').value;
+      let registros = [];
+
+      if (db) {
+        try {
+          const querySnapshot = await getDocs(collection(db, "relatorios_presenca"));
+          querySnapshot.forEach((doc) => {
+            registros.push(doc.data());
+          });
+        } catch(e) { console.error(e); }
+      }
+
+      if (registros.length === 0) {
+        for (let i = 0; i < localStorage.length; i++) {
+          let key = localStorage.key(i);
+          if (key.startsWith("vq_presenca_")) {
+            registros.push(JSON.parse(localStorage.getItem(key)));
+          }
+        }
+      }
+
+      const dataAtual = document.getElementById('dataLancamento').value;
+      if (tipo === 'dia') {
+        registros = registros.filter(r => r.data === dataAtual);
+      } else if (tipo === 'periodo') {
+        const inicio = document.getElementById('excelInicio').value;
+        const fim = document.getElementById('excelFim').value;
+        if (inicio && fim) {
+          registros = registros.filter(r => r.data >= inicio && r.data <= fim);
+        }
+      }
+
+      if (registros.length === 0) {
+        alert("Nenhum registro encontrado para o filtro selecionado.");
+        return;
+      }
+
+      let linhasPlanilha = [];
+      registros.forEach(dados => {
+        linhasPlanilha.push({ "Data": dados.data, "Indicador": "Total Previsto VQ", "Valor": dados.totalPrevisto, "Detalhe": "" });
+        linhasPlanilha.push({ "Data": dados.data, "Indicador": "Total Presentes VQ", "Valor": dados.totalPresentes, "Detalhe": "" });
+        linhasPlanilha.push({ "Data": dados.data, "Indicador": "Total Ausentes VQ", "Valor": dados.totalAusentes, "Detalhe": "" });
+
+        dados.areas.forEach(a => {
+          const nomeLimpo = limparTextoSemEmoji(a.nome);
+
+          linhasPlanilha.push({ "Data": dados.data, "Indicador": `Área: ${nomeLimpo} (Previsto)`, "Valor": a.previsto, "Detalhe": "" });
+          linhasPlanilha.push({ "Data": dados.data, "Indicador": `Área: ${nomeLimpo} (Presentes)`, "Valor": a.presentes, "Detalhe": "" });
+          linhasPlanilha.push({ "Data": dados.data, "Indicador": `Área: ${nomeLimpo} (Ausentes)`, "Valor": a.ausentes, "Detalhe": "" });
+
+          if (a.detalhesAusentes && a.detalhesAusentes.length > 0) {
+            a.detalhesAusentes.forEach(d => {
+              linhasPlanilha.push({
+                "Data": dados.data,
+                "Indicador": `Ausência em ${nomeLimpo}`,
+                "Valor": 1,
+                "Detalhe": `Colaborador: ${d.colaborador} | Motivo: ${d.motivo}`
+              });
+            });
+          }
+        });
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(linhasPlanilha);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Controle Presenca");
+      XLSX.writeFile(workbook, `Relatorio_Presenca_${tipo}.xlsx`);
+      mostrarToast("📤 Excel exportado com texto limpo!");
+    };
+
+    window.importarExcel = function(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+
+          if (json.length > 0 && json[0]["Data"]) {
+            document.getElementById('dataLancamento').value = json[0]["Data"];
+          }
+
+          json.forEach(row => {
+            areas.forEach(area => {
+              const nomeLimpo = limparTextoSemEmoji(area.nome);
+              if (row["Indicador"] && row["Indicador"].includes(nomeLimpo)) {
+                if (row["Indicador"].includes("Previsto")) document.getElementById(`previsto_${area.id}`).value = row["Valor"];
+                if (row["Indicador"].includes("Presentes")) document.getElementById(`presentes_${area.id}`).value = row["Valor"];
+              }
+            });
+          });
+
+          areas.forEach(area => {
+            const nomeLimpo = limparTextoSemEmoji(area.nome);
+            const p = parseInt(document.getElementById(`previsto_${area.id}`).value) || 0;
+            const pr = parseInt(document.getElementById(`presentes_${area.id}`).value) || 0;
+            let ausentesRows = json.filter(r => r["Indicador"] && r["Indicador"].includes(`Ausência em ${nomeLimpo}`));
+            let dadosAusentes = ausentesRows.map(r => {
+              let parts = (r["Detalhe"] || "").split(" | Motivo: ");
+              return { colaborador: parts[0]?.replace("Colaborador: ", "") || "", motivo: parts[1] || "" };
+            });
+            window.ajustarCamposAusentes(area.id, p, pr, dadosAusentes);
+          });
+
+          calcular();
+          aoDigitarFormulario();
+          mostrarToast("📥 Importado com sucesso!");
+        } catch (err) {
+          alert("Erro ao importar Excel.");
+        }
+        event.target.value = '';
+      };
+      reader.readAsArrayBuffer(file);
+    };
+
+    // Histórico Geral na Aba de Fundo
+    window.carregarHistorico = async function() {
+      const container = document.getElementById('tabelaHistorico');
+      container.innerHTML = `<div class="text-center py-6 text-sm text-slate-400">Buscando lançamentos...</div>`;
+
+      let registros = [];
+      if (db) {
+        try {
+          const querySnapshot = await getDocs(collection(db, "relatorios_presenca"));
+          querySnapshot.forEach((doc) => {
+            registros.push(doc.data());
+          });
+        } catch(e) { console.error(e); }
+      }
+
+      if (registros.length === 0) {
+        for (let i = 0; i < localStorage.length; i++) {
+          let key = localStorage.key(i);
+          if (key.startsWith("vq_presenca_")) {
+            registros.push(JSON.parse(localStorage.getItem(key)));
+          }
+        }
+      }
+
+      if (registros.length === 0) {
+        container.innerHTML = `<div class="text-center py-6 text-sm text-slate-400">Nenhum lançamento encontrado.</div>`;
+        return;
+      }
+
+      registros.sort((a, b) => new Date(b.data) - new Date(a.data));
+
+      let html = `<div class="space-y-2">`;
+      registros.forEach(reg => {
+        let taxa = reg.totalPrevisto > 0 ? ((reg.totalPresentes / reg.totalPrevisto) * 100).toFixed(1) + '%' : '0%';
+        html += `
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+              <div class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <span>📅</span> ${formatarDataBR(reg.data)}
+              </div>
+              <div class="text-xs text-slate-500 mt-1 flex gap-3">
+                <span>👥 Previsto: <strong>${reg.totalPrevisto}</strong></span>
+                <span>✅ Presentes: <strong>${reg.totalPresentes}</strong></span>
+                <span>❌ Ausentes: <strong class="text-rose-600">${reg.totalAusentes}</strong></span>
+                <span>📈 Assiduidade: <strong class="text-blue-600">${taxa}</strong></span>
+              </div>
+            </div>
+            <div class="flex gap-2 w-full sm:w-auto">
+              <button onclick="carregarDiaHistorico('${reg.data}')" class="flex-1 sm:flex-none bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+                ✏️ Carregar
+              </button>
+              <button onclick="deletarDiaHistorico('${reg.data}')" class="flex-1 sm:flex-none bg-rose-50 text-rose-700 hover:bg-rose-100 px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+                🗑️ Deletar
+              </button>
+            </div>
+          </div>
+        `;
+      });
+      html += `</div>`;
+      container.innerHTML = html;
+    };
+
+    window.carregarDiaHistorico = function(dataStr) {
+      document.getElementById('dataLancamento').value = dataStr;
+      window.mudarAba('lancamento');
+      window.aoMudarData();
+      mostrarToast(`📅 Carregado lançamento de ${formatarDataBR(dataStr)}`);
+    };
+
+    window.deletarDiaHistorico = async function(dataStr) {
+      if (confirm(`Deseja realmente deletar o lançamento do dia ${formatarDataBR(dataStr)}?`)) {
+        localStorage.removeItem(`vq_presenca_${dataStr}`);
+        if (db) {
+          try {
+            await deleteDoc(doc(db, "relatorios_presenca", dataStr));
+          } catch(e) { console.error(e); }
+        }
+        carregarHistorico();
+        mostrarToast("🗑️ Lançamento removido do histórico!");
+      }
+    };
+
+    window.limparFormulario = function() {
+      if (confirm('Deseja limpar todos os campos?')) {
+        limparCamposValores();
+        calcular();
+      }
+    };
+
+    window.copiarTexto = function() {
+      const texto = document.getElementById('resultadoText').innerText;
+      if (texto.includes('Aguardando')) {
+        alert('Preencha ao menos uma área.');
+        return;
+      }
+      const textarea = document.createElement('textarea');
+      textarea.value = texto;
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        mostrarToast("📋 Relatório copiado!");
+      } catch (err) {
+        alert('Erro ao copiar.');
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    };
+
+    function mostrarToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastMsg').innerText = msg;
+      toast.classList.remove('opacity-0', 'pointer-events-none');
+      toast.classList.add('opacity-100');
+      setTimeout(() => {
+        toast.classList.remove('opacity-100');
+        toast.classList.add('opacity-0', 'pointer-events-none');
+      }, 3000);
+    }
+
+    window.onload = inicializarFormulario;
+  </script>
+
+</body>
+</html>
